@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,6 +11,8 @@ import (
 )
 
 var ApiToken string = ""
+
+var JsonErr = errors.New("Can't unmarshal JSON!")
 
 type PlayerInfo struct {
 	GameName   string
@@ -51,10 +54,11 @@ type LeagueStats struct {
 }
 
 // Performs a GET request on the given URL
-func GetRiotApi(url string) []byte {
+func GetRiotApi(url string) ([]byte, error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		fmt.Println("Couldn't create request: ", err)
+		// fmt.Println("Couldn't create request: ", err)
+		return nil, err
 	}
 	req.Header.Add("X-Riot-Token", ApiToken)
 
@@ -62,66 +66,90 @@ func GetRiotApi(url string) []byte {
 
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Println("Error occured during request: ", err)
+		// fmt.Println("Error occured during request: ", err)
+		return nil, err
 	}
 	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
-	return body
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	return body, nil
 }
 
-func (p *PlayerInfo) getIDS() {
+func (p *PlayerInfo) getIDS() error {
 	if p.GameName == "" || p.TagLine == "" {
-		fmt.Println("Error: can't retrieve player's IDs without GameName and TagLine !")
-		return
+		err := errors.New("Couldn't retrieve player's IDs without GameName and TagLine !")
+		return err
 	}
 	puidUrl := "https://europe.api.riotgames.com/riot/account/v1/accounts/by-riot-id/" + p.GameName + "/" + p.TagLine
 
 	var puidResponse AccountJSON
-	if err := json.Unmarshal(GetRiotApi(puidUrl), &puidResponse); err != nil {
-		fmt.Println("Can't unmarshal json!")
+	res, err := GetRiotApi(puidUrl)
+	if err != nil {
+		return err
+	}
+	if err := json.Unmarshal(res, &puidResponse); err != nil {
+		return err
 	}
 
 	var summonerResponse SummonerJSON
 	summonerUrl := "https://euw1.api.riotgames.com/lol/summoner/v4/summoners/by-puuid/" + puidResponse.Puuid
-	if err := json.Unmarshal(GetRiotApi(summonerUrl), &summonerResponse); err != nil {
-		fmt.Println("Can't unmarshal json!")
+	res, err = GetRiotApi(summonerUrl)
+	if err != nil {
+		return err
+	}
+	if err := json.Unmarshal(res, &summonerResponse); err != nil {
+		return err
 	}
 	p.PUUID = puidResponse.Puuid
 	p.AccountID = summonerResponse.AccountID
 	p.SummonerID = summonerResponse.ID
+
+	return nil // No errors :)
 }
 
-func (p *PlayerInfo) getRankedStats() (rankedStats LeagueStats) {
+func (p *PlayerInfo) getRankedStats() (rankedStats *LeagueStats, err error) {
 	if p.SummonerID == "" {
-		fmt.Println("Error: can't get info about player: empty SummonerID")
-		return
+		err = errors.New("Couldn't get info about player: empty SummonerID")
+		return nil, err
 	}
 
 	statsUrl := "https://euw1.api.riotgames.com/lol/league/v4/entries/by-summoner/" + p.SummonerID
 
 	var statsArray []LeagueStats
-	if err := json.Unmarshal(GetRiotApi(statsUrl), &statsArray); err != nil {
-		fmt.Println("Error parsing Leagues json!")
+	res, err := GetRiotApi(statsUrl)
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(res, &statsArray); err != nil {
+		return nil, err
 	}
 
 	rankedStatsIndex := slices.IndexFunc(statsArray, func(s LeagueStats) bool {
 		return s.QueueType == "RANKED_SOLO_5x5"
 	})
-	rankedStats = statsArray[rankedStatsIndex]
+	if rankedStatsIndex == -1 {
+		err = errors.New("Player doesn't have any ranked games")
+		return nil, err
+	}
+	rankedStats = &statsArray[rankedStatsIndex]
 	return
 }
 
-func getLucasWinRate() string {
+func getLucasWinRate() (string, error) {
 	lucas := new(PlayerInfo)
 	lucas.GameName = "lucxsstbn"
 	lucas.TagLine = "EUW"
-	lucas.getIDS()
+	err := lucas.getIDS()
+	if err != nil {
+		return "Error getting player's IDs: " + err.Error(), err
+	}
 	fmt.Println(PrettyPrint(lucas))
-	rankedStats := lucas.getRankedStats()
-	// if rankedStats != nil {
-	// 	fmt.Println("Couldn't get player's stats!")
-	// 	return "Error"
-	// }
+	rankedStats, err := lucas.getRankedStats()
+	if err != nil {
+		return "Error getting player info: " + err.Error(), err
+	}
 
 	totalGames := rankedStats.Wins + rankedStats.Losses
 	ratio := float64(rankedStats.Wins) / float64(totalGames) * 100
@@ -134,16 +162,15 @@ func getLucasWinRate() string {
 	s += "Défaites: " + strconv.Itoa(rankedStats.Losses) + " \n"
 	s += "Ratio: " + strconv.FormatFloat(ratio, 'f', 4, 64) + "% \n"
 
-	return s
+	return s, nil
 }
 
-func Api() string {
-	// lucas := new(PlayerInfo)
-	// lucas.GameName = "lucxsstbn"
-	// lucas.TagLine = "EUW"
-	// lucas.getIDS()
-	// fmt.Println(PrettyPrint(lucas))
-	return getLucasWinRate()
+func Api() (string, error) {
+	message, err := getLucasWinRate()
+	if err != nil {
+		return "An error happened, couldn't get player's stats", err
+	}
+	return message, nil
 }
 func PrettyPrint(i interface{}) string {
 	s, _ := json.MarshalIndent(i, "", "\t")

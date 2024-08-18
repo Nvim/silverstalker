@@ -54,7 +54,10 @@ func newMessage(discord *discordgo.Session, message *discordgo.MessageCreate) {
 	case strings.Contains(message.Content, "!help"):
 		discord.ChannelMessageSend(message.ChannelID, "Hello World😃")
 	case strings.Contains(message.Content, "!lucas"):
-		s := Api.Api()
+		s, err := Api.Api()
+		if err != nil {
+			fmt.Println("Error trace: " + err.Error())
+		}
 		discord.ChannelMessageSend(message.ChannelID, s)
 		// add more cases if required
 	}
