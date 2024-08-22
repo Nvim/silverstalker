@@ -3,16 +3,15 @@ package api
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
-	"slices"
 	"strconv"
 )
 
 var (
 	ApiToken string = ""
-	JsonErr         = errors.New("Can't unmarshal JSON!")
+	ErrJson         = errors.New("can't unmarshal JSON")
+	Lucas    *PlayerInfo
 )
 
 // Performs a GET request on the given URL
@@ -48,24 +47,17 @@ func Itoa(i int) {
 }
 
 func GetLucasStats() (string, error) {
-	lucas := new(PlayerInfo)
-	lucas.GameName = "lucxsstbn"
-	lucas.TagLine = "EUW"
-	err := lucas.getIDS()
-	if err != nil {
-		return "Error getting player's IDs: " + err.Error(), err
-	}
-	fmt.Println(PrettyPrint(lucas))
+	lucas := Lucas
 
 	rankedStats, err := lucas.getRankedStats()
 	if err != nil {
 		return "Error getting player info: " + err.Error(), err
 	}
 
-	matchIDs, err := lucas.getLatestMatches()
-	if err != nil {
-		return "Error getting player info: " + err.Error(), err
-	}
+	// matchIDs, err := lucas.getLatestMatches()
+	// if err != nil {
+	// 	return "Error getting player info: " + err.Error(), err
+	// }
 
 	// fmt.Println(PrettyPrint(matchIDs))
 
@@ -79,30 +71,33 @@ func GetLucasStats() (string, error) {
 	s += "Victoires: " + strconv.Itoa(rankedStats.Wins) + " \n"
 	s += "Défaites: " + strconv.Itoa(rankedStats.Losses) + " \n"
 	s += "Ratio: " + strconv.FormatFloat(ratio, 'f', 4, 64) + "% \n"
+	s += "matchIDs des dernieres games: \n"
 
-	match, err := getMatchInfo(matchIDs[0])
-	if err != nil {
-		return "Error: " + err.Error(), err
-	}
-
-	var index int
-	index = slices.IndexFunc(match.Info.Participants, func(p Participant) bool {
-		return p.Puuid == lucas.PUUID
-	})
-
-	if index == -1 {
-		return "Error: couldn't find lucas in game participants", nil
-	}
-	l := match.Info.Participants[index]
-
-	stats, err := getChampLevelStats(&match.Info.Participants, l.TeamId)
-	if err != nil {
-		return "Error: " + err.Error(), err
-	}
-
-	s += "Game avg level: " + strconv.FormatFloat(stats.gameStats.avg, 'f', 4, 64) + "\n"
-	s += "Team avg level: " + strconv.FormatFloat(stats.teamStats.avg, 'f', 4, 64) + "\n"
-	s += "Lucas level: " + strconv.Itoa(l.ChampLevel) + "\n"
+	// for i, m := range matchIDs {
+	// 	s += ("- " + m + ": (")
+	// 	match, err := getMatchInfo(matchIDs[i])
+	// 	if err != nil {
+	// 		return "Error: " + err.Error(), err
+	// 	}
+	//
+	// 	index := slices.IndexFunc(match.Info.Participants, func(p Participant) bool {
+	// 		return p.Puuid == lucas.PUUID
+	// 	})
+	//
+	// 	if index == -1 {
+	// 		return "Error \n", errors.New("coulnd't find Lucas in participants list")
+	// 	}
+	// 	l := match.Info.Participants[index]
+	//
+	// 	stats, err := getChampLevelStats(&match.Info.Participants, l.TeamId)
+	// 	if err != nil {
+	// 		return "Error: " + err.Error(), err
+	// 	}
+	//
+	// 	s += "Game avg level: " + strconv.FormatFloat(stats.gameStats.avg, 'f', 4, 64) + ", "
+	// 	s += "Team avg level: " + strconv.FormatFloat(stats.teamStats.avg, 'f', 4, 64) + ", "
+	// 	s += "Lucas level: " + strconv.Itoa(l.ChampLevel) + ")\n"
+	// }
 
 	return s, nil
 }

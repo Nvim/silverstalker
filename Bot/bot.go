@@ -2,33 +2,41 @@ package bot
 
 import (
 	"fmt"
-	Api "github.com/Nvim/silverstalker/Api"
-	"github.com/bwmarrin/discordgo"
 	"log"
 	"os"
 	"os/signal"
 	"strings"
+
+	Api "github.com/Nvim/silverstalker/Api"
+	"github.com/bwmarrin/discordgo"
 )
 
-var BotToken string
+var (
+	BotToken string
+	Bot      *discordgo.Session
+)
 
-func checkNilErr(e error) {
-	if e != nil {
-		log.Fatal("Error message")
+func Init() (err error) {
+	Bot, err = discordgo.New("Bot " + BotToken)
+	if err != nil {
+		log.Fatal("Error creating bot: ", err.Error())
 	}
+	return err
 }
 
-func Run() {
-
+func Listen() error {
 	// create a session
-	discord, err := discordgo.New("Bot " + BotToken)
-	checkNilErr(err)
+	discord := Bot
 
 	// add a event handler
 	discord.AddHandler(newMessage)
 
 	// open session
-	discord.Open()
+	err := discord.Open()
+	if err != nil {
+		log.Fatal("Error opening discord websocket")
+		return err
+	}
 	defer discord.Close() // close session, after function termination
 
 	// keep bot running untill there is NO os interruption (ctrl + C)
@@ -36,15 +44,24 @@ func Run() {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
 	<-c
+	return nil
+}
 
+func SendMessage(msg string) error {
+	err := Bot.Open()
+	if err != nil {
+		log.Fatal("Error opening discord websocket")
+		return err
+	}
+	defer Bot.Close() // close session, after function termination
+	_, err = Bot.ChannelMessageSend("1273632829753917515", msg)
+	if err != nil {
+		log.Fatal("couldn't send message in channel")
+	}
+	return nil
 }
 
 func newMessage(discord *discordgo.Session, message *discordgo.MessageCreate) {
-
-	/* prevent bot responding to its own message
-	this is achived by looking into the message author id
-	if message.author.id is same as bot.author.id then just return
-	*/
 	if message.Author.ID == discord.State.User.ID {
 		return
 	}
@@ -52,14 +69,18 @@ func newMessage(discord *discordgo.Session, message *discordgo.MessageCreate) {
 	// respond to user message if it contains `!help` or `!bye`
 	switch {
 	case strings.Contains(message.Content, "!help"):
-		discord.ChannelMessageSend(message.ChannelID, "Hello World😃")
+		_, err := discord.ChannelMessageSend(message.ChannelID, "Hello World")
+		if err != nil {
+			log.Fatal("couldn't send message in channel")
+		}
 	case strings.Contains(message.Content, "!lucas"):
 		s, err := Api.Api()
 		if err != nil {
 			fmt.Println("Error trace: " + err.Error())
 		}
-		discord.ChannelMessageSend(message.ChannelID, s)
-		// add more cases if required
+		_, err = discord.ChannelMessageSend(message.ChannelID, s)
+		if err != nil {
+			log.Fatal("couldn't send message in channel")
+		}
 	}
-
 }
