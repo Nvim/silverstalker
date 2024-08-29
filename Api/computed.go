@@ -1,5 +1,10 @@
 package api
 
+import (
+	"errors"
+	"slices"
+)
+
 /* Helpers to make game/team stats about participants */
 
 type IndividualStats[T int | float64] struct {
@@ -9,8 +14,67 @@ type IndividualStats[T int | float64] struct {
 }
 
 type Stats[T int | float64] struct {
-	teamStats IndividualStats[T]
-	gameStats IndividualStats[T]
+	teamStats  IndividualStats[T]
+	gameStats  IndividualStats[T]
+	playerStat T
+}
+
+type MatchComputed struct {
+	ChampLevel             Stats[int]
+	VisionScore            Stats[int]
+	TimeSpentLiving        Stats[int]
+	DamageDealtToChampions Stats[int]
+}
+
+func ComputeStats(matchId string, puiid string) (*MatchComputed, error) {
+	match, err := GetMatchInfo(matchId)
+	if err != nil {
+		return nil, err
+	}
+
+	playerIdx := slices.IndexFunc(match.Info.Participants, func(p Participant) bool {
+		return p.Puuid == Lucas.PUUID
+	})
+
+	if playerIdx == -1 {
+		return nil, errors.New("Couldn't find player's PUID in participants list")
+	}
+
+	player := match.Info.Participants[playerIdx]
+	participants := match.Info.Participants
+	team := filterParticipantsByTeamId(&participants, player.TeamId)
+
+	champLevel, err := getChampLevelStats(&participants, team)
+	if err != nil {
+		return nil, err
+	}
+	visionScore, err := getVisionScoreStats(&participants, team)
+	if err != nil {
+		return nil, err
+	}
+	timeSpentLiving, err := getTimeSpentLivingStats(&participants, team)
+	if err != nil {
+		return nil, err
+	}
+
+	damageDealtToChampions, err := getDamageDealtToChampionsStats(&participants, team)
+	if err != nil {
+		return nil, err
+	}
+
+	champLevel.playerStat = player.ChampLevel
+	visionScore.playerStat = player.VisionScore
+	timeSpentLiving.playerStat = player.LongestTimeSpentLiving
+	damageDealtToChampions.playerStat = player.TotalDamageDealtToChampions
+
+	computed := MatchComputed{
+		champLevel,
+		visionScore,
+		timeSpentLiving,
+		damageDealtToChampions,
+	}
+
+	return &computed, nil
 }
 
 func filterParticipantsByTeamId(participants *[]Participant, teamId int) *[]Participant {
@@ -23,7 +87,7 @@ func filterParticipantsByTeamId(participants *[]Participant, teamId int) *[]Part
 	return &filteredParticipants
 }
 
-func getChampLevelStats(participants *[]Participant, teamMates *[]Participant, teamId int) (Stats[int], error) {
+func getChampLevelStats(participants *[]Participant, teamMates *[]Participant) (Stats[int], error) {
 	max := 1
 	min := 18
 	avg := 0.0
@@ -54,10 +118,10 @@ func getChampLevelStats(participants *[]Participant, teamMates *[]Participant, t
 	avg = avg / 10
 	gameStats := IndividualStats[int]{max, min, avg}
 
-	return Stats[int]{teamStats, gameStats}, nil
+	return Stats[int]{teamStats, gameStats, 0}, nil
 }
 
-func getVisionScoreStats(participants *[]Participant, teamMates *[]Participant, teamId int) (Stats[int], error) {
+func getVisionScoreStats(participants *[]Participant, teamMates *[]Participant) (Stats[int], error) {
 	max := 0
 	min := 100000
 	avg := 0.0
@@ -88,10 +152,10 @@ func getVisionScoreStats(participants *[]Participant, teamMates *[]Participant, 
 	avg = avg / 10
 	gameStats := IndividualStats[int]{max, min, avg}
 
-	return Stats[int]{teamStats, gameStats}, nil
+	return Stats[int]{teamStats, gameStats, 0}, nil
 }
 
-func getTimeSpentLivingStats(participants *[]Participant, teamMates *[]Participant, teamId int) (Stats[int], error) {
+func getTimeSpentLivingStats(participants *[]Participant, teamMates *[]Participant) (Stats[int], error) {
 	max := 0
 	min := 100000
 	avg := 0.0
@@ -122,10 +186,10 @@ func getTimeSpentLivingStats(participants *[]Participant, teamMates *[]Participa
 	avg = avg / 10
 	gameStats := IndividualStats[int]{max, min, avg}
 
-	return Stats[int]{teamStats, gameStats}, nil
+	return Stats[int]{teamStats, gameStats, 0}, nil
 }
 
-func getDamageDealtToChampionsStats(participants *[]Participant, teamMates *[]Participant, teamId int) (Stats[int], error) {
+func getDamageDealtToChampionsStats(participants *[]Participant, teamMates *[]Participant) (Stats[int], error) {
 	max := 0
 	min := 100000
 	avg := 0.0
@@ -156,5 +220,5 @@ func getDamageDealtToChampionsStats(participants *[]Participant, teamMates *[]Pa
 	avg = avg / 10
 	gameStats := IndividualStats[int]{max, min, avg}
 
-	return Stats[int]{teamStats, gameStats}, nil
+	return Stats[int]{teamStats, gameStats, 0}, nil
 }

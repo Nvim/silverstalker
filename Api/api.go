@@ -3,13 +3,16 @@ package api
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"reflect"
 	"strconv"
 )
 
 var (
-	ApiToken string = ""
+	ApiToken string = os.Getenv("API_TOKEN")
 	ErrJson         = errors.New("can't unmarshal JSON")
 	Lucas    *PlayerInfo
 )
@@ -42,10 +45,6 @@ func GetRiotApi(url string) ([]byte, error) {
 	return body, nil
 }
 
-func Itoa(i int) {
-	panic("unimplemented")
-}
-
 func GetLucasStats() (string, error) {
 	lucas := Lucas
 
@@ -53,13 +52,6 @@ func GetLucasStats() (string, error) {
 	if err != nil {
 		return "Error getting player info: " + err.Error(), err
 	}
-
-	// matchIDs, err := lucas.getLatestMatches()
-	// if err != nil {
-	// 	return "Error getting player info: " + err.Error(), err
-	// }
-
-	// fmt.Println(PrettyPrint(matchIDs))
 
 	totalGames := rankedStats.Wins + rankedStats.Losses
 	ratio := float64(rankedStats.Wins) / float64(totalGames) * 100
@@ -100,6 +92,25 @@ func GetLucasStats() (string, error) {
 	// }
 
 	return s, nil
+}
+
+func GetMatchStats(matchId string) (string, error) {
+	computed, err := ComputeStats(matchId, Lucas.PUUID)
+	if err != nil {
+		return "Error getting stats of game " + matchId, err
+	}
+
+	str := "\n"
+
+	s := reflect.ValueOf(computed).Elem()
+	typeOfS := s.Type()
+	for i := 0; i < s.NumField(); i++ {
+		field := s.Field(i)
+		// str += fmt.Sprintf("%s: %#v", s.Type().Field(i).Name, field.Interface())
+		str += fmt.Sprintf("%s = %v\n\n", typeOfS.Field(i).Name, field.Interface())
+	}
+
+	return str, nil
 }
 
 func Api() (string, error) {

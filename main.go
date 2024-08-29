@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"os"
 	"time"
 
 	bot "github.com/Nvim/silverstalker/Bot"
@@ -11,6 +12,11 @@ import (
 )
 
 func main() {
+	// err := godotenv.Load(".envrc")
+	// if err != nil {
+	// 	log.Fatal("Couldn't load .env: ", err)
+	// 	return
+	// }
 	/* Lucas Init: */
 	api.Lucas = new(api.PlayerInfo)
 	lucas := api.Lucas
@@ -24,7 +30,7 @@ func main() {
 	fmt.Println(api.PrettyPrint(lucas))
 
 	/* Bot Init: */
-	bot.BotToken = ""
+	bot.BotToken = os.Getenv("BOT_TOKEN")
 	err = bot.Init()
 	if err != nil {
 		log.Fatal("Error creating bot: " + err.Error())
@@ -47,16 +53,24 @@ func main() {
 	/* Get timestamps: */
 	endTime := latestMatch.Info.GameEndTimestamp
 	eventTimestamp := time.Unix(0, endTime*int64(time.Millisecond))
-	sleepDuration := time.Until(eventTimestamp.Add(20 * time.Minute))
+	// sleepDuration := time.Until(eventTimestamp.Add(20 * time.Minute))
 
 	log.Println("Latest game ID: ", latestId)
 	log.Println("Latest game ended at: ", eventTimestamp.UTC())
 
-	if sleepDuration > 0 {
-		log.Println("Sleeping until: ", (time.Now().Add(sleepDuration)).UTC())
-		time.Sleep(sleepDuration)
+	// TODO: this calls api.GetMatchInfo a 2nd timekj
+	stats, err := api.GetMatchStats(latestId)
+	if err != nil {
+		log.Fatal("Error gettting match stats: " + err.Error())
 	}
-	log.Println("Woke up from sleep")
+	log.Println("Stats: " + stats)
+	return
+
+	// if sleepDuration > 0 {
+	// 	log.Println("Sleeping until: ", (time.Now().Add(sleepDuration)).UTC())
+	// 	time.Sleep(sleepDuration)
+	// }
+	// log.Println("Woke up from sleep")
 
 	// Periodic fetching every 10 minutes
 	ticker := time.NewTicker(10 * time.Minute)
@@ -91,7 +105,7 @@ func main() {
 		log.Println("New latest game end: ", eventTimestamp.UTC())
 
 		/* Send message: */
-		bot.SendMessage(fmt.Sprintf("Nouvelle game: %s", latestId))
+		_ = bot.SendMessage(fmt.Sprintf("Nouvelle game: %s", latestId))
 
 		/* Go to sleep: */
 		sleepDuration := time.Until(eventTimestamp.Add(20 * time.Minute))
