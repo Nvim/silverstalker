@@ -58,12 +58,13 @@ func main() {
 	log.Println("Latest game ID: ", latestId)
 	log.Println("Latest game ended at: ", eventTimestamp.UTC())
 
-	// TODO: this calls api.GetMatchInfo a 2nd timekj
+	// TODO: this calls api.GetMatchInfo a 2nd time
 	stats, err := api.GetMatchStats(latestId)
 	if err != nil {
 		log.Fatal("Error gettting match stats: " + err.Error())
 	}
 	log.Println("Stats: " + stats)
+	_ = bot.SendMessage(stats)
 	return
 
 	// if sleepDuration > 0 {
@@ -104,8 +105,12 @@ func main() {
 		log.Println("New latest game ID: ", latestId)
 		log.Println("New latest game end: ", eventTimestamp.UTC())
 
-		/* Send message: */
-		_ = bot.SendMessage(fmt.Sprintf("Nouvelle game: %s", latestId))
+		stats, err := api.GetMatchStats(latestId)
+		if err != nil {
+			log.Fatal("Error gettting match stats: " + err.Error())
+		}
+		log.Println("Stats: " + stats)
+		_ = bot.SendMessage(stats)
 
 		/* Go to sleep: */
 		sleepDuration := time.Until(eventTimestamp.Add(20 * time.Minute))

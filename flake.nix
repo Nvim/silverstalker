@@ -26,12 +26,14 @@
         }:
         {
           devShells.default = pkgs.mkShell.override { stdenv = pkgs.clang18Stdenv; } {
+            hardeningDisable = [ "fortify" ];
             packages = with pkgs; [
               # Base:
               go
               # IDE Tools:
               gopls # LSP & Formatter
               golangci-lint
+              delve
               # Libs:
 
               # misc:

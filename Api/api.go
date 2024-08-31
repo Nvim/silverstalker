@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"reflect"
 	"strconv"
 )
 
@@ -65,32 +64,6 @@ func GetLucasStats() (string, error) {
 	s += "Ratio: " + strconv.FormatFloat(ratio, 'f', 4, 64) + "% \n"
 	s += "matchIDs des dernieres games: \n"
 
-	// for i, m := range matchIDs {
-	// 	s += ("- " + m + ": (")
-	// 	match, err := getMatchInfo(matchIDs[i])
-	// 	if err != nil {
-	// 		return "Error: " + err.Error(), err
-	// 	}
-	//
-	// 	index := slices.IndexFunc(match.Info.Participants, func(p Participant) bool {
-	// 		return p.Puuid == lucas.PUUID
-	// 	})
-	//
-	// 	if index == -1 {
-	// 		return "Error \n", errors.New("coulnd't find Lucas in participants list")
-	// 	}
-	// 	l := match.Info.Participants[index]
-	//
-	// 	stats, err := getChampLevelStats(&match.Info.Participants, l.TeamId)
-	// 	if err != nil {
-	// 		return "Error: " + err.Error(), err
-	// 	}
-	//
-	// 	s += "Game avg level: " + strconv.FormatFloat(stats.gameStats.avg, 'f', 4, 64) + ", "
-	// 	s += "Team avg level: " + strconv.FormatFloat(stats.teamStats.avg, 'f', 4, 64) + ", "
-	// 	s += "Lucas level: " + strconv.Itoa(l.ChampLevel) + ")\n"
-	// }
-
 	return s, nil
 }
 
@@ -100,15 +73,25 @@ func GetMatchStats(matchId string) (string, error) {
 		return "Error getting stats of game " + matchId, err
 	}
 
-	str := "\n"
-
-	s := reflect.ValueOf(computed).Elem()
-	typeOfS := s.Type()
-	for i := 0; i < s.NumField(); i++ {
-		field := s.Field(i)
-		// str += fmt.Sprintf("%s: %#v", s.Type().Field(i).Name, field.Interface())
-		str += fmt.Sprintf("%s = %v\n\n", typeOfS.Field(i).Name, field.Interface())
+	slice := computed.getMins()
+	str := "Pires stats de la game:\n"
+	for _, stat := range slice {
+		str += fmt.Sprintf("* %s: %d (Moyenne de l'équipe: %f, Moyenne de la game: %f)\n", stat.name, stat.playerStat, stat.teamStats.avg, stat.gameStats.avg)
 	}
+	if len(slice) < 4 {
+		slice = computed.getBadRatios()
+		for _, stat := range slice {
+			str += fmt.Sprintf("- %s: %d (Moyenne de l'équipe: %f, Moyenne de la game: %f)\n", stat.name, stat.playerStat, stat.teamStats.avg, stat.gameStats.avg)
+		}
+	}
+
+	// s := reflect.ValueOf(computed).Elem()
+	// typeOfS := s.Type()
+	// for i := 0; i < s.NumField(); i++ {
+	// 	field := s.Field(i)
+	// 	// str += fmt.Sprintf("%s: %#v", s.Type().Field(i).Name, field.Interface())
+	// 	str += fmt.Sprintf("%s = %v\n\n", typeOfS.Field(i).Name, field.Interface())
+	// }
 
 	return str, nil
 }
