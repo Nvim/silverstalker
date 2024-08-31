@@ -26,17 +26,18 @@ type Stats[T int | float64] struct {
 }
 
 type MatchComputed struct {
-	ChampLevel             Stats[int]
-	VisionScore            Stats[int]
-	TimeSpentLiving        Stats[int]
-	DamageDealtToChampions Stats[int]
+	ChampLevel                Stats[int]
+	VisionScore               Stats[int]
+	TimeSpentLiving           Stats[int]
+	DamageDealtToChampions    Stats[int]
+	LaneMinionsFirst10Minutes Stats[int]
 }
 
 // returns a slice of Stat where the player is minimum:
-func (match MatchComputed) getMins() []Stats[int] {
+func getMins(match *MatchComputed) []Stats[int] {
 	slice := make([]Stats[int], 0)
 
-	v := reflect.ValueOf(match)
+	v := reflect.ValueOf(*match)
 	t := v.Type()
 	for i := 0; i < t.NumField(); i++ {
 		// field := t.Field(i)
@@ -55,10 +56,10 @@ func (match MatchComputed) getMins() []Stats[int] {
 }
 
 // returns a Slice of stat where the player is under average:
-func (match MatchComputed) getBadRatios() []Stats[int] {
+func getBadRatios(match *MatchComputed) []Stats[int] {
 	slice := make([]Stats[int], 0)
 
-	v := reflect.ValueOf(match)
+	v := reflect.ValueOf(*match)
 	t := v.Type()
 	for i := 0; i < t.NumField(); i++ {
 		// field := t.Field(i)
@@ -82,200 +83,114 @@ func ComputeStats(match *Match, puiid string) (*MatchComputed, error) {
 	})
 
 	if playerIdx == -1 {
-		return nil, errors.New("Couldn't find player's PUID in participants list")
+		return nil, errors.New("couldn't find player's PUID in participants list")
 	}
 
 	player := match.Info.Participants[playerIdx]
 	participants := match.Info.Participants
-	team := filterParticipantsByTeamId(&participants, player.TeamId)
+	// teamMates := filterParticipantsByTeamId(&participants, player.TeamId)
 
-	champLevel, err := getChampLevelStats(&participants, team, player.ChampLevel)
-	if err != nil {
-		return nil, err
-	}
-	visionScore, err := getVisionScoreStats(&participants, team, player.VisionScore)
-	if err != nil {
-		return nil, err
-	}
-	timeSpentLiving, err := getTimeSpentLivingStats(&participants, team, player.LongestTimeSpentLiving)
-	if err != nil {
-		return nil, err
+	var champLevels [10]int
+	var visionScores [10]int
+	var timeSpentLiving [10]int
+	var damageDealtToChampions [10]int
+	var laneMinions10 [10]int
+	teamChampLevels := make([]int, 5)
+	teamVisionScores := make([]int, 5)
+	teamTimeSpentLiving := make([]int, 5)
+	teamDamageDealtToChampions := make([]int, 5)
+	teamLaneMinions10 := make([]int, 5)
+	for i, p := range participants {
+		if p.TeamId == player.TeamId {
+			teamChampLevels[i] = p.ChampLevel
+			teamVisionScores[i] = p.VisionScore
+			teamTimeSpentLiving[i] = p.LongestTimeSpentLiving
+			teamDamageDealtToChampions[i] = p.TotalDamageDealtToChampions
+			teamLaneMinions10[i] = p.Challenges.LaneMinionsFirst10Minutes
+		}
+		champLevels[i] = p.ChampLevel
+		visionScores[i] = p.VisionScore
+		timeSpentLiving[i] = p.LongestTimeSpentLiving
+		damageDealtToChampions[i] = p.TotalDamageDealtToChampions
+		laneMinions10[i] = p.Challenges.LaneMinionsFirst10Minutes
 	}
 
-	damageDealtToChampions, err := getDamageDealtToChampionsStats(&participants, team, player.TotalDamageDealtToChampions)
+	champLevelStat, err := computeStat(champLevels, teamChampLevels, player.ChampLevel, "Niveau")
+	if err != nil {
+		return nil, err
+	}
+	visionScoreStat, err := computeStat(visionScores, teamVisionScores, player.VisionScore, "Score de vision")
+	if err != nil {
+		return nil, err
+	}
+	timeSpentLivingStat, err := computeStat(timeSpentLiving, teamTimeSpentLiving, player.LongestTimeSpentLiving, "Plus longue durée sans mourir")
+	if err != nil {
+		return nil, err
+	}
+	damageDealtToChampionsStat, err := computeStat(damageDealtToChampions, teamDamageDealtToChampions, player.TotalDamageDealtToChampions, "Dégâts aux champions ennemis")
+	if err != nil {
+		return nil, err
+	}
+	laneMinions10Stat, err := computeStat(laneMinions10, teamLaneMinions10, player.Challenges.LaneMinionsFirst10Minutes, "Farm à 10 minutes")
 	if err != nil {
 		return nil, err
 	}
 
 	computed := MatchComputed{
-		champLevel,
-		visionScore,
-		timeSpentLiving,
-		damageDealtToChampions,
+		champLevelStat,
+		visionScoreStat,
+		timeSpentLivingStat,
+		damageDealtToChampionsStat,
+		laneMinions10Stat,
 	}
 
 	return &computed, nil
 }
 
-func filterParticipantsByTeamId(participants *[]Participant, teamId int) *[]Participant {
-	var filteredParticipants []Participant
-	for _, participant := range *participants {
-		if participant.TeamId == teamId {
-			filteredParticipants = append(filteredParticipants, participant)
-		}
-	}
-	return &filteredParticipants
-}
-
-func getChampLevelStats(participants *[]Participant, teamMates *[]Participant, playerStat int) (Stats[int], error) {
-	max := 1
-	min := 18
+func computeStat(gameScores [10]int, teamScores []int, playerScore int, name string) (Stats[int], error) {
+	var max int = 0
+	var min int = 1000000
 	avg := 0.0
 
-	for _, p := range *teamMates {
-		if p.ChampLevel > max {
-			max = p.ChampLevel
+	for _, p := range teamScores {
+		if p > max {
+			max = p
 		}
-		if p.ChampLevel < min {
-			min = p.ChampLevel
+		if p < min {
+			min = p
 		}
-		avg += float64(p.ChampLevel)
-	}
-	avg = avg / 5
-	teamStats := IndividualStats[int]{max, min, avg}
-
-	max = 1
-	min = 18
-	avg = 0.0
-	for _, p := range *participants {
-		if p.ChampLevel > max {
-			max = p.ChampLevel
-		}
-		if p.ChampLevel < min {
-			min = p.ChampLevel
-		}
-		avg += float64(p.ChampLevel)
-	}
-	avg = avg / 10
-	gameStats := IndividualStats[int]{max, min, avg}
-
-	isTeamMin := playerStat == teamStats.min
-	isGameMin := playerStat == gameStats.min
-	teamRatio := float64(playerStat) / teamStats.avg
-	gameRatio := float64(playerStat) / gameStats.avg
-	return Stats[int]{"Niveau", teamStats, gameStats, playerStat, isTeamMin, isGameMin, teamRatio, gameRatio}, nil
-}
-
-func getVisionScoreStats(participants *[]Participant, teamMates *[]Participant, playerStat int) (Stats[int], error) {
-	max := 0
-	min := 100000
-	avg := 0.0
-
-	for _, p := range *teamMates {
-		if p.VisionScore > max {
-			max = p.VisionScore
-		}
-		if p.VisionScore < min {
-			min = p.VisionScore
-		}
-		avg += float64(p.VisionScore)
+		avg += float64(p)
 	}
 	avg = avg / 5
 	teamStats := IndividualStats[int]{max, min, avg}
 	max = 0
 	min = 100000
 	avg = 0.0
-	for _, p := range *participants {
-		if p.VisionScore > max {
-			max = p.VisionScore
+	for _, p := range gameScores {
+		if p > max {
+			max = p
 		}
-		if p.VisionScore < min {
-			min = p.VisionScore
+		if p < min {
+			min = p
 		}
-		avg += float64(p.VisionScore)
+		avg += float64(p)
 	}
 	avg = avg / 10
 	gameStats := IndividualStats[int]{max, min, avg}
 
-	isTeamMin := playerStat == teamStats.min
-	isGameMin := playerStat == gameStats.min
-	teamRatio := float64(playerStat) / teamStats.avg
-	gameRatio := float64(playerStat) / gameStats.avg
-	return Stats[int]{"Score de vision", teamStats, gameStats, playerStat, isTeamMin, isGameMin, teamRatio, gameRatio}, nil
+	isTeamMin := playerScore == teamStats.min
+	isGameMin := playerScore == gameStats.min
+	teamRatio := float64(playerScore) / teamStats.avg
+	gameRatio := float64(playerScore) / gameStats.avg
+	return Stats[int]{name, teamStats, gameStats, playerScore, isTeamMin, isGameMin, teamRatio, gameRatio}, nil
 }
 
-func getTimeSpentLivingStats(participants *[]Participant, teamMates *[]Participant, playerStat int) (Stats[int], error) {
-	max := 0
-	min := 100000
-	avg := 0.0
-
-	for _, p := range *teamMates {
-		if p.LongestTimeSpentLiving > max {
-			max = p.LongestTimeSpentLiving
-		}
-		if p.LongestTimeSpentLiving < min {
-			min = p.LongestTimeSpentLiving
-		}
-		avg += float64(p.LongestTimeSpentLiving)
-	}
-	avg = avg / 5
-	teamStats := IndividualStats[int]{max, min, avg}
-	max = 0
-	min = 100000
-	avg = 0.0
-	for _, p := range *participants {
-		if p.LongestTimeSpentLiving > max {
-			max = p.LongestTimeSpentLiving
-		}
-		if p.LongestTimeSpentLiving < min {
-			min = p.LongestTimeSpentLiving
-		}
-		avg += float64(p.LongestTimeSpentLiving)
-	}
-	avg = avg / 10
-	gameStats := IndividualStats[int]{max, min, avg}
-
-	isTeamMin := playerStat == teamStats.min
-	isGameMin := playerStat == gameStats.min
-	teamRatio := float64(playerStat) / teamStats.avg
-	gameRatio := float64(playerStat) / gameStats.avg
-	return Stats[int]{"Plus longue durée passée en vie", teamStats, gameStats, playerStat, isTeamMin, isGameMin, teamRatio, gameRatio}, nil
-}
-
-func getDamageDealtToChampionsStats(participants *[]Participant, teamMates *[]Participant, playerStat int) (Stats[int], error) {
-	max := 0
-	min := 100000
-	avg := 0.0
-
-	for _, p := range *teamMates {
-		if p.TotalDamageDealtToChampions > max {
-			max = p.TotalDamageDealtToChampions
-		}
-		if p.TotalDamageDealtToChampions < min {
-			min = p.TotalDamageDealtToChampions
-		}
-		avg += float64(p.TotalDamageDealtToChampions)
-	}
-	avg = avg / 5
-	teamStats := IndividualStats[int]{max, min, avg}
-	max = 0
-	min = 100000
-	avg = 0.0
-	for _, p := range *participants {
-		if p.TotalDamageDealtToChampions > max {
-			max = p.TotalDamageDealtToChampions
-		}
-		if p.TotalDamageDealtToChampions < min {
-			min = p.TotalDamageDealtToChampions
-		}
-		avg += float64(p.TotalDamageDealtToChampions)
-	}
-	avg = avg / 10
-	gameStats := IndividualStats[int]{max, min, avg}
-
-	isTeamMin := playerStat == teamStats.min
-	isGameMin := playerStat == gameStats.min
-	teamRatio := float64(playerStat) / teamStats.avg
-	gameRatio := float64(playerStat) / gameStats.avg
-	return Stats[int]{"Dégâts aux champions ennemis", teamStats, gameStats, playerStat, isTeamMin, isGameMin, teamRatio, gameRatio}, nil
-}
+// func filterParticipantsByTeamId(participants *[]Participant, teamId int) *[]Participant {
+// 	var filteredParticipants []Participant
+// 	for _, participant := range *participants {
+// 		if participant.TeamId == teamId {
+// 			filteredParticipants = append(filteredParticipants, participant)
+// 		}
+// 	}
+// 	return &filteredParticipants
+// }

@@ -96,15 +96,17 @@ func GetMatchStatsString(match *Match) (string, error) {
 		return "Error getting stats of game " + match.Metadata.MatchID, err
 	}
 
-	slice := computed.getMins()
+	slice := getMins(computed)
 	str := "Pires stats de la game: 🫵\n"
 	for _, stat := range slice {
 		str += fmt.Sprintf("* %s: %d (Moyenne de l'équipe: %.2f, Moyenne de la game: %.2f)\n", stat.name, stat.playerStat, stat.teamStats.avg, stat.gameStats.avg)
+		str += fmt.Sprintf("* %s: %v (Moyenne de l'équipe: %.2f, Moyenne de la game: %.2f)\n", stat.name, stat.playerStat, stat.teamStats.avg, stat.gameStats.avg)
 	}
 	if len(slice) < 4 {
-		slice = computed.getBadRatios()
+		slice = getBadRatios(computed)
 		for _, stat := range slice {
 			str += fmt.Sprintf("- %s: %d (Moyenne de l'équipe: %.2f, Moyenne de la game: %.2f)\n", stat.name, stat.playerStat, stat.teamStats.avg, stat.gameStats.avg)
+			str += fmt.Sprintf("- %s: %v (Moyenne de l'équipe: %.2f, Moyenne de la game: %.2f)\n", stat.name, stat.playerStat, stat.teamStats.avg, stat.gameStats.avg)
 		}
 	}
 
