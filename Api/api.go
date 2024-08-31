@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"slices"
 	"strconv"
 )
 
@@ -67,33 +68,61 @@ func GetLucasStats() (string, error) {
 	return s, nil
 }
 
-func GetMatchStats(matchId string) (string, error) {
-	computed, err := ComputeStats(matchId, Lucas.PUUID)
+func GetMatchMetaString(match *Match) (string, error) {
+	playerIdx := slices.IndexFunc(match.Info.Participants, func(p Participant) bool {
+		return p.Puuid == Lucas.PUUID
+	})
+	if playerIdx == -1 {
+		return "", errors.New("couldn't find player's index")
+	}
+	player := match.Info.Participants[playerIdx]
+
+	s := "🚨Nouvelle game! 🚨\n"
+	if player.Win {
+		s += "- Victoire🎉 (on va quand même te trash mon con)\n"
+	} else {
+		s += "- Défaite\n"
+	}
+
+	s += fmt.Sprintf("- Champ: %s (%s)\n", player.ChampionName, player.IndividualPosition)
+	s += fmt.Sprintf("- %d/%d/%d (KDA: %.2f)\n", player.Kills, player.Deaths, player.Assists, player.Challenges.Kda)
+
+	return s, nil
+}
+
+func GetMatchStatsString(match *Match) (string, error) {
+	computed, err := ComputeStats(match, Lucas.PUUID)
 	if err != nil {
-		return "Error getting stats of game " + matchId, err
+		return "Error getting stats of game " + match.Metadata.MatchID, err
 	}
 
 	slice := computed.getMins()
-	str := "Pires stats de la game:\n"
+	str := "Pires stats de la game: 🫵\n"
 	for _, stat := range slice {
-		str += fmt.Sprintf("* %s: %d (Moyenne de l'équipe: %f, Moyenne de la game: %f)\n", stat.name, stat.playerStat, stat.teamStats.avg, stat.gameStats.avg)
+		str += fmt.Sprintf("* %s: %d (Moyenne de l'équipe: %.2f, Moyenne de la game: %.2f)\n", stat.name, stat.playerStat, stat.teamStats.avg, stat.gameStats.avg)
 	}
 	if len(slice) < 4 {
 		slice = computed.getBadRatios()
 		for _, stat := range slice {
-			str += fmt.Sprintf("- %s: %d (Moyenne de l'équipe: %f, Moyenne de la game: %f)\n", stat.name, stat.playerStat, stat.teamStats.avg, stat.gameStats.avg)
+			str += fmt.Sprintf("- %s: %d (Moyenne de l'équipe: %.2f, Moyenne de la game: %.2f)\n", stat.name, stat.playerStat, stat.teamStats.avg, stat.gameStats.avg)
 		}
 	}
 
-	// s := reflect.ValueOf(computed).Elem()
-	// typeOfS := s.Type()
-	// for i := 0; i < s.NumField(); i++ {
-	// 	field := s.Field(i)
-	// 	// str += fmt.Sprintf("%s: %#v", s.Type().Field(i).Name, field.Interface())
-	// 	str += fmt.Sprintf("%s = %v\n\n", typeOfS.Field(i).Name, field.Interface())
-	// }
-
 	return str, nil
+}
+
+// Message that will be sent by the bot:
+func GetMatchDescString(match *Match) (string, error) {
+	meta, err := GetMatchMetaString(match)
+	if err != nil {
+		return "Error gettting match stats: " + err.Error(), err
+	}
+	stats, err := GetMatchStatsString(match)
+	if err != nil {
+		return "Error gettting match stats: " + err.Error(), err
+	}
+
+	return fmt.Sprintf("%s%s", meta, stats), nil
 }
 
 func Api() (string, error) {

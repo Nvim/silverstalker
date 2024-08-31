@@ -30,6 +30,9 @@ type Participant struct {
 	RiotIDGameName              string    `json:"riotIdGameName"`
 	ChampionName                string    `json:"championName"`
 	IndividualPosition          string    `json:"individualPosition"`
+	Kills                       int       `json:"kills"`
+	Assists                     int       `json:"assists"`
+	Deaths                      int       `json:"deaths"`
 	Challenges                  Challenge `json:"challenges"`
 	Summoner1Casts              int       `json:"summoner1Casts"`
 	ObjectivesStolen            int       `json:"objectivesStolen"`

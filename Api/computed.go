@@ -76,12 +76,7 @@ func (match MatchComputed) getBadRatios() []Stats[int] {
 	return slice
 }
 
-func ComputeStats(matchId string, puiid string) (*MatchComputed, error) {
-	match, err := GetMatchInfo(matchId)
-	if err != nil {
-		return nil, err
-	}
-
+func ComputeStats(match *Match, puiid string) (*MatchComputed, error) {
 	playerIdx := slices.IndexFunc(match.Info.Participants, func(p Participant) bool {
 		return p.Puuid == Lucas.PUUID
 	})
