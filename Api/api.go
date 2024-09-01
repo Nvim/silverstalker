@@ -12,9 +12,16 @@ import (
 )
 
 var (
-	ApiToken string = os.Getenv("API_TOKEN")
-	ErrJson         = errors.New("can't unmarshal JSON")
-	Lucas    *PlayerInfo
+	ApiToken   string = os.Getenv("API_TOKEN")
+	ErrJson           = errors.New("can't unmarshal JSON")
+	Lucas      *PlayerInfo
+	fieldNames = map[string]string{
+		"ChampLevel":                  "Niveau",
+		"VisionScore":                 "Score de vision",
+		"LongestTimeSpentLiving":      "Plus longue durée passée en vie",
+		"TotalDamageDealtToChampions": "Dégâts aux champions ennemis",
+		"LaneMinionsFirst10Minutes":   "Farm à 10 minutes",
+	}
 )
 
 // Performs a GET request on the given URL
@@ -99,14 +106,12 @@ func GetMatchStatsString(match *Match) (string, error) {
 	slice := getMins(computed)
 	str := "Pires stats de la game: 🫵\n"
 	for _, stat := range slice {
-		str += fmt.Sprintf("* %s: %d (Moyenne de l'équipe: %.2f, Moyenne de la game: %.2f)\n", stat.name, stat.playerStat, stat.teamStats.avg, stat.gameStats.avg)
-		str += fmt.Sprintf("* %s: %v (Moyenne de l'équipe: %.2f, Moyenne de la game: %.2f)\n", stat.name, stat.playerStat, stat.teamStats.avg, stat.gameStats.avg)
+		str += fmt.Sprintf("* %s: %v (Moyenne de l'équipe: %.2f, Moyenne de la game: %.2f)\n", fieldNames[stat.name], stat.playerStat, stat.teamStats.avg, stat.gameStats.avg)
 	}
 	if len(slice) < 4 {
 		slice = getBadRatios(computed)
 		for _, stat := range slice {
-			str += fmt.Sprintf("- %s: %d (Moyenne de l'équipe: %.2f, Moyenne de la game: %.2f)\n", stat.name, stat.playerStat, stat.teamStats.avg, stat.gameStats.avg)
-			str += fmt.Sprintf("- %s: %v (Moyenne de l'équipe: %.2f, Moyenne de la game: %.2f)\n", stat.name, stat.playerStat, stat.teamStats.avg, stat.gameStats.avg)
+			str += fmt.Sprintf("- %s: %v (Moyenne de l'équipe: %.2f, Moyenne de la game: %.2f)\n", fieldNames[stat.name], stat.playerStat, stat.teamStats.avg, stat.gameStats.avg)
 		}
 	}
 
