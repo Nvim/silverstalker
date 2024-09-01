@@ -97,8 +97,8 @@ func GetMatchMetaString(match *Match) (string, error) {
 	return s, nil
 }
 
-func GetMatchStatsString(match *Match) (string, error) {
-	computed, err := ComputeStats(match, Lucas.PUUID)
+func GetMatchStatsString[T IntOrFloat](match *Match) (string, error) {
+	computed, err := ComputeStats[T](match, Lucas.PUUID)
 	if err != nil {
 		return "Error getting stats of game " + match.Metadata.MatchID, err
 	}
