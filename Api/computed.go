@@ -11,22 +11,28 @@ var fields = map[string]bool{
 	"VisionScore":                 false,
 	"LongestTimeSpentLiving":      false,
 	"TotalDamageDealtToChampions": false,
+	"GoldEarned":                  false,
+	"WardsPlaced":                 false,
+	"SoloKills":                   true,
+	"DamagePerMinute":             true,
 	"LaneMinionsFirst10Minutes":   true,
+	"Kda":                         true,
+	"GoldPerMinute":               true,
 }
 
 /* Helpers to make game/team stats about participants */
 
-type IndividualStats[T int | float64] struct {
-	max T
-	min T
+type IndividualStats struct {
+	max float64
+	min float64
 	avg float64
 }
 
-type Stats[T int | float64] struct {
+type Stats struct {
 	name       string
-	teamStats  IndividualStats[T]
-	gameStats  IndividualStats[T]
-	playerStat T
+	teamStats  IndividualStats
+	gameStats  IndividualStats
+	playerStat float64
 	isTeamMin  bool    // is player the worst of his team
 	isGameMin  bool    // is player the worst in the game
 	TeamRatio  float64 // ratio between team avg and players score
@@ -34,12 +40,12 @@ type Stats[T int | float64] struct {
 }
 
 type MatchComputed struct {
-	stats map[string]Stats[int] // TODO: generic type instead of hard-coded int
+	stats map[string]Stats // TODO: generic type instead of hard-coded int
 }
 
 // returns a slice of Stat where the player is minimum:
-func getMins(match *MatchComputed) []Stats[int] {
-	slice := make([]Stats[int], 0)
+func getMins(match *MatchComputed) []Stats {
+	slice := make([]Stats, 0)
 
 	for _, stat := range match.stats {
 		if stat.isTeamMin || stat.isGameMin {
@@ -50,8 +56,8 @@ func getMins(match *MatchComputed) []Stats[int] {
 }
 
 // returns a Slice of stat where the player is under average:
-func getBadRatios(match *MatchComputed) []Stats[int] {
-	slice := make([]Stats[int], 0)
+func getBadRatios(match *MatchComputed) []Stats {
+	slice := make([]Stats, 0)
 
 	for _, stat := range match.stats {
 		if stat.TeamRatio < 1.0 || stat.GameRatio < 1.0 {
@@ -72,14 +78,14 @@ func ComputeStats(match *Match, puiid string) (*MatchComputed, error) {
 
 	player := match.Info.Participants[playerIdx]
 	participants := match.Info.Participants
-	statsMap := make(map[string]Stats[int])
+	statsMap := make(map[string]Stats)
 
 	for field, isChallengeField := range fields {
-		var teamStat [5]int
-		var gameStat [10]int
+		var teamStat [5]float64
+		var gameStat [10]float64
 		teamIdx := 0
 		for i, p := range participants {
-			var score int
+			var score float64
 			if isChallengeField {
 				score = getChallengeFieldInt(&p, field)
 			} else {
@@ -91,7 +97,7 @@ func ComputeStats(match *Match, puiid string) (*MatchComputed, error) {
 			}
 			gameStat[i] = score
 		}
-		var playerScore int
+		var playerScore float64
 		if isChallengeField {
 			playerScore = getChallengeFieldInt(&player, field)
 		} else {
@@ -111,36 +117,42 @@ func ComputeStats(match *Match, puiid string) (*MatchComputed, error) {
 	return &computed, nil
 }
 
-func getFieldInt(participant *Participant, field string) int {
+func getFieldInt(participant *Participant, field string) float64 {
 	r := reflect.ValueOf(participant)
 	f := reflect.Indirect(r).FieldByName(field)
-	return int(f.Int())
+	if f.CanFloat() {
+		return f.Float()
+	}
+	return float64(f.Int())
 }
 
-func getChallengeFieldInt(participant *Participant, field string) int {
+func getChallengeFieldInt(participant *Participant, field string) float64 {
 	r := reflect.ValueOf(participant.Challenges)
 	f := reflect.Indirect(r).FieldByName(field)
-	return int(f.Int())
+	if f.CanFloat() {
+		return f.Float()
+	}
+	return float64(f.Int())
 }
 
-func computeStat(gameScores [10]int, teamScores [5]int, playerScore int, name string) (Stats[int], error) {
-	var max, min int
+func computeStat(gameScores [10]float64, teamScores [5]float64, playerScore float64, name string) (Stats, error) {
+	var max, min float64
 	var avg float64
 	max, min, avg = getMaxMinAvg(teamScores[:])
-	teamStats := IndividualStats[int]{max, min, avg}
+	teamStats := IndividualStats{max, min, avg}
 	max, min, avg = getMaxMinAvg(gameScores[:])
-	gameStats := IndividualStats[int]{max, min, avg}
+	gameStats := IndividualStats{max, min, avg}
 
 	isTeamMin := playerScore == teamStats.min
 	isGameMin := playerScore == gameStats.min
 	teamRatio := float64(playerScore) / teamStats.avg
 	gameRatio := float64(playerScore) / gameStats.avg
-	return Stats[int]{name, teamStats, gameStats, playerScore, isTeamMin, isGameMin, teamRatio, gameRatio}, nil
+	return Stats{name, teamStats, gameStats, playerScore, isTeamMin, isGameMin, teamRatio, gameRatio}, nil
 }
 
-func getMaxMinAvg(scores []int) (max int, min int, avg float64) {
-	max = 0
-	min = 1000000
+func getMaxMinAvg(scores []float64) (max float64, min float64, avg float64) {
+	max = 0.0
+	min = 1000000.0
 	avg = 0.0
 
 	for _, val := range scores {
