@@ -21,6 +21,12 @@ var (
 		"LongestTimeSpentLiving":      "Plus longue durée passée en vie",
 		"TotalDamageDealtToChampions": "Dégâts aux champions ennemis",
 		"LaneMinionsFirst10Minutes":   "Farm à 10 minutes",
+		"GoldEarned":                  "Gold Obtenu",
+		"WardsPlaced":                 "Wards placées",
+		"SoloKills":                   "Solo Kills",
+		"DamagePerMinute":             "Dégâts par minute",
+		"Kda":                         "KDA",
+		"GoldPerMinute":               "Gold Par minute",
 	}
 )
 
@@ -103,15 +109,17 @@ func GetMatchStatsString(match *Match) (string, error) {
 		return "Error getting stats of game " + match.Metadata.MatchID, err
 	}
 
-	slice := getMins(computed)
+	minSlice := getMins(computed)
 	str := "Pires stats de la game: 🫵\n"
-	for _, stat := range slice {
-		str += fmt.Sprintf("* %s: %v (Moyenne de l'équipe: %.2f, Moyenne de la game: %.2f)\n", fieldNames[stat.name], stat.playerStat, stat.teamStats.avg, stat.gameStats.avg)
+	for _, stat := range minSlice {
+		str += fmt.Sprintf("* %s:: %.2f (Moyenne de l'équipe: %.2f, Moyenne de la game: %.2f)\n", fieldNames[stat.name], stat.playerStat, stat.teamStats.avg, stat.gameStats.avg)
 	}
-	if len(slice) < 4 {
-		slice = getBadRatios(computed)
-		for _, stat := range slice {
-			str += fmt.Sprintf("- %s: %v (Moyenne de l'équipe: %.2f, Moyenne de la game: %.2f)\n", fieldNames[stat.name], stat.playerStat, stat.teamStats.avg, stat.gameStats.avg)
+	if len(minSlice) < 4 {
+		badSlice := getBadRatios(computed)
+		for _, stat := range badSlice {
+			if !SliceContains(minSlice, stat) {
+				str += fmt.Sprintf("- %s: %.2f (Moyenne de l'équipe: %.2f, Moyenne de la game: %.2f)\n", fieldNames[stat.name], stat.playerStat, stat.teamStats.avg, stat.gameStats.avg)
+			}
 		}
 	}
 
@@ -143,4 +151,13 @@ func Api() (string, error) {
 func PrettyPrint(i interface{}) string {
 	s, _ := json.MarshalIndent(i, "", "\t")
 	return string(s)
+}
+
+func SliceContains[T comparable](slice []T, value T) bool {
+	for _, v := range slice {
+		if v == value {
+			return true
+		}
+	}
+	return false
 }
